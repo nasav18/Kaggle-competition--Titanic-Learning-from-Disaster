@@ -1,0 +1,115 @@
+import pandas as pd 
+import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier 
+from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
+from sklearn.model_selection import KFold
+from sklearn.model_selection import cross_val_score
+
+train=pd.read_csv(r'C:\Users\girie\Desktop\Kaggle\train.csv')
+test=pd.read_csv(r'C:\Users\girie\Desktop\Kaggle\test.csv')
+
+train.drop(['Cabin','PassengerId'],axis=1,inplace=True)
+test.drop(['Cabin'],axis=1,inplace=True)
+ 
+#train_m=train['Age'].median()
+#test_m=test['Age'].median()
+
+#train['Age'].replace(np.nan,train_m,inplace=True)
+#test['Age'].replace(np.nan,test_m,inplace=True)
+#print(train.isnull().sum()) 
+#print(test.isnull().sum())
+
+def bar_chart(feature):
+    survived=train[train['Survived']==1][feature].value_counts()
+    dead =train[train['Survived']==0][feature].value_counts() 
+    graph= pd.DataFrame([survived,dead])
+    graph.index= ['survived','dead']
+    graph.plot(kind='bar',stacked = True, figsize=(10,5))
+"""
+bar_chart('Pclass')
+bar_chart('Sex')
+bar_chart('SibSp')
+bar_chart('Parch')
+bar_chart('Embarked')"""
+
+train_test_data = [train, test] # combining train and test dataset
+
+for dataset in train_test_data:
+    dataset['Title'] = dataset['Name'].str.extract(' ([A-Za-z]+)\.', expand=False)
+
+#print(train['Title'].value_counts())
+#print(test['Title'].value_counts())
+
+title_map={'Mr':0, 'Miss':1 ,'Mrs':2, 'Master':3, 'Dr':3, 'Rev':3, 'Mlle':3, 'Col':3, 'Major':3 ,'Lady':3, 'Capt':3, 'Sir':3, 'Ms':3, 'Jhonkheer':3, 'Mme':3 ,'Countess':3, 'Don':3, 'Dona':3}
+for dataset in train_test_data:
+    dataset['Title']=dataset['Title'].map(title_map)
+
+features=['Name','Ticket','Fare']
+train.drop(features,axis=1,inplace=True)
+test.drop(features,axis=1,inplace=True)
+
+train['Age'].fillna(train.groupby('Title')['Age'].transform('median'),inplace=True)
+test['Age'].fillna(test.groupby('Title')['Age'].transform('median'),inplace=True)
+
+for dataset in train_test_data:
+    dataset.loc[ dataset['Age']<=16, 'Age']=0
+    dataset.loc[(dataset['Age']>16) & (dataset['Age']<=26) ,'Age']=1
+    dataset.loc[(dataset['Age']>26) & (dataset['Age']<=36) ,'Age']=2
+    dataset.loc[(dataset['Age']>36) & (dataset['Age']<=56) ,'Age']=3
+    dataset.loc[dataset['Age']>56 ,'Age']=4
+"""bar_chart('Age')"""
+
+sex_map={'male':1,'female':0}
+embark_map={'S':0,'C':1,'Q':2}
+for dataset in train_test_data:
+    dataset['Sex']=dataset['Sex'].map(sex_map)
+    dataset['Embarked']=dataset['Embarked'].map(embark_map) 
+    
+train["FamilySize"] = train["SibSp"] + train["Parch"] + 1
+test["FamilySize"] = test["SibSp"] + test["Parch"] + 1
+
+family_mapping = {1: 0, 2: 0.4, 3: 0.8, 4: 1.2, 5: 1.6, 6: 2, 7: 2.4, 8: 2.8, 9: 3.2, 10: 3.6, 11: 4}
+for dataset in train_test_data:
+    dataset['FamilySize'] = dataset['FamilySize'].map(family_mapping)
+
+features_final=['SibSp','Parch']
+train.drop(features_final,axis=1,inplace=True)
+test.drop(features_final,axis=1,inplace=True)    
+
+train_data=train.drop('Survived',axis=1)
+target=train['Survived']
+
+'''Training and Testing of Model'''
+train_data = train_data.fillna(train_data.median()).clip(-1e11,1e11)
+target= target.fillna(target.median()).clip(-1e11,1e11)
+k_fold = KFold(n_splits=9, shuffle=True, random_state=0)
+'''Random Forest Classifier''
+clf = RandomForestClassifier(n_estimators=5)
+scoring = 'accuracy'
+score = cross_val_score(clf, train_data, target,cv=k_fold, scoring=scoring)
+print(round(np.mean(score)*100,2))'''
+'''Gaussian Naive Bayes'''
+gnb = GaussianNB()
+scoring = 'accuracy'
+gnb_score = cross_val_score(gnb, train_data, target,cv=k_fold, scoring=scoring)
+print(round(np.mean(gnb_score)*100,2))
+
+'''Support Vector Machine'''
+svm=SVC()
+scoring = 'accuracy'
+svc_score = cross_val_score(svm, train_data, target,cv=k_fold, scoring=scoring)
+print(round(np.mean(svc_score)*100,2))
+
+svm.fit(train_data,target)
+test_data = test.drop("PassengerId", axis=1).copy()
+prediction = svm.predict(test_data)
+final = pd.DataFrame({
+        "PassengerId": test["PassengerId"],
+        "Survived": prediction
+    })
+
+final.to_csv('final.csv', index=False)
+#submission = pd.read_csv('submission.csv')
+
